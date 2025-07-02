@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>StudyMate</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>StudyMate</h2>
+  <button id="saveWordBtn">📌 Lưu từ đã chọn</button>
+  <textarea id="note" placeholder="Viết ghi chú..." style="width:100%;height:60px;margin-top:8px;border-radius:4px;"></textarea>
+  <div id="notes-list" style="max-height:100px;overflow:auto;margin:8px 0 0 0;"></div>
+  <div style="margin-top:8px;">
+    <button id="saveNote">💾 Lưu ghi chú</button>
+    <button id="export">📤 Xuất ghi chú & từ</button>
+  </div>
+  <div id="status" style="margin-top:8px;color:green;font-size:13px;"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+body { font-family: Arial; width: 280px; padding: 10px; background: #e6f7ff; }
+button, textarea { width:100%; margin-top:5px; padding:6px; }
+textarea { height: 80px; }
+#status { margin-top:6px; color:green; min-height:18px; }
