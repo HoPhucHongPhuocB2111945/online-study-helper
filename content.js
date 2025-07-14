@@ -71,6 +71,11 @@
         </select>
         <input id="studymate-border" type="color" value="#bbbbbb" title="Màu viền" style="width:28px;height:28px;padding:0;border:none;background:none;">
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="studymate-search" type="text" placeholder="Tìm ghi chú..." style="flex:1;border-radius:4px;border:1px solid #ccc;padding:3px 8px;font-size:13px;">
+        <button id="studymate-show-pin" style="border-radius:4px;border:1px solid #888;background:#ffe066;cursor:pointer;padding:3px 8px;">Chỉ ghim</button>
+        <button id="studymate-export" style="border-radius:4px;border:1px solid #888;background:#ffe066;cursor:pointer;padding:3px 8px;">Xuất TXT</button>
+      </div>
       <div id="studymate-notes-list" style="max-height:120px;overflow:auto;margin-bottom:8px;"></div>
       <textarea id="studymate-note" placeholder="Thêm ghi chú mới..." style="width:100%;height:50px;border-radius:4px;border:1.5px solid #ccc;padding:4px;resize:vertical"></textarea>
       <input id="studymate-remind" type="number" min="0" placeholder="Nhắc sau (phút)" style="width:120px;margin:4px 0 0 0;border-radius:4px;border:1px solid #ccc;padding:3px 6px;font-size:13px;">
@@ -136,36 +141,80 @@
     document.getElementById('studymate-font').onchange = () => { applyStyle(); saveStyle(); };
     document.getElementById('studymate-border').oninput = () => { applyStyle(); saveStyle(); };
 
-    // Hiển thị danh sách ghi chú (có pin)
+    // Biến trạng thái tìm kiếm và pin
+    let showOnlyPin = false;
+    let searchText = "";
+
+    document.getElementById('studymate-search').oninput = e => {
+      searchText = e.target.value.trim().toLowerCase();
+      renderNotes();
+    };
+    document.getElementById('studymate-show-pin').onclick = () => {
+      showOnlyPin = !showOnlyPin;
+      document.getElementById('studymate-show-pin').style.background = showOnlyPin ? "#ffd700" : "#ffe066";
+      renderNotes();
+    };
+    document.getElementById('studymate-export').onclick = () => {
+      chrome.storage.local.get('notesList', data => {
+        const notes = data.notesList || [];
+        const txt = notes.map(n => {
+          let text = n.text || n;
+          let time = n.time ? ` (${n.time})` : '';
+          let pin = n.pin ? " [GHIM]" : "";
+          return `${text}${time}${pin}`;
+        }).join('\n');
+        const blob = new Blob([txt], {type:"text/plain"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = "studymate_notes.txt";
+        a.click(); URL.revokeObjectURL(url);
+      });
+    };
+
+    // Hiển thị danh sách ghi chú (có pin, tìm kiếm)
     function renderNotes() {
       chrome.storage.local.get('notesList', data => {
         let notes = data.notesList || [];
-        // Đảm bảo mỗi ghi chú là object
         notes = notes.map(n => typeof n === 'object' ? n : {text: n, time: '', pin: false});
-        // Sắp xếp: pin=true lên đầu
-        notes.sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
+        // Tạo mảng mapping index gốc
+        let mapping = notes.map((_, i) => i);
+
+        // Lọc theo pin
+        if (showOnlyPin) {
+          mapping = mapping.filter(i => notes[i].pin);
+        }
+        // Lọc theo search
+        if (searchText) {
+          mapping = mapping.filter(i => (notes[i].text || "").toLowerCase().includes(searchText));
+        }
+        // Sắp xếp pin lên đầu
+        mapping.sort((a, b) => (notes[b].pin ? 1 : 0) - (notes[a].pin ? 1 : 0));
+
         const listDiv = document.getElementById('studymate-notes-list');
         if (!listDiv) return;
-        if (!notes.length) {
+        if (!mapping.length) {
           listDiv.innerHTML = '<i>Chưa có ghi chú nào.</i>';
           return;
         }
-        listDiv.innerHTML = notes.map((note, idx) => `
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-            <span class="studymate-note-item" data-idx="${idx}" style="word-break:break-word;max-width:150px;cursor:pointer;">
-              ${note.text}
-              <span style="color:#aaa;font-size:11px;">${note.time ? ' ('+note.time+')' : ''}</span>
-            </span>
-            <div>
-              <button class="studymate-pin-btn" data-idx="${idx}" title="Ghim/Bỏ ghim" style="margin-right:4px;border:none;background:none;cursor:pointer;font-size:16px;">${note.pin ? "📌" : "📍"}</button>
-              <button data-idx="${idx}" style="color:#fff;background:#e74c3c;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;">X</button>
+        listDiv.innerHTML = mapping.map((realIdx, idx) => {
+          const note = notes[realIdx];
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <span class="studymate-note-item" data-idx="${realIdx}" style="word-break:break-word;max-width:150px;cursor:pointer;">
+                ${note.text}
+                <span style="color:#aaa;font-size:11px;">${note.time ? ' ('+note.time+')' : ''}</span>
+              </span>
+              <div>
+                <button class="studymate-pin-btn" data-idx="${realIdx}" title="Ghim/Bỏ ghim" style="margin-right:4px;border:none;background:none;cursor:pointer;font-size:16px;">${note.pin ? "📌" : "📍"}</button>
+                <button data-idx="${realIdx}" style="color:#fff;background:#e74c3c;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;">X</button>
+              </div>
             </div>
-          </div>
-        `).join('');
+          `).join('');
         // Gắn sự kiện xóa
         listDiv.querySelectorAll('button[data-idx]:not(.studymate-pin-btn)').forEach(btn => {
           btn.onclick = () => {
-            notes.splice(Number(btn.dataset.idx), 1);
+            const idx = Number(btn.dataset.idx);
+            notes.splice(idx, 1);
             chrome.storage.local.set({notesList: notes}, renderNotes);
           };
         });
@@ -231,7 +280,7 @@
             }, remind * 60000);
           }
         });
-      };
+      });
     };
   }
 

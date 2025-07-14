@@ -58,35 +58,55 @@ document.getElementById('popup-theme').onchange = () => { applyStyle(); saveStyl
 document.getElementById('popup-font').onchange = () => { applyStyle(); saveStyle(); };
 document.getElementById('popup-border').oninput = () => { applyStyle(); saveStyle(); };
 
-// Hiển thị danh sách ghi chú (có pin, thời gian)
+// Tìm kiếm ghi chú và chỉ xem ghi chú đã ghim
+let showOnlyPin = false;
+let searchText = "";
+
+document.getElementById('popup-search').oninput = e => {
+  searchText = e.target.value.trim().toLowerCase();
+  renderNotes();
+};
+document.getElementById('popup-show-pin').onclick = () => {
+  showOnlyPin = !showOnlyPin;
+  document.getElementById('popup-show-pin').style.background = showOnlyPin ? "#ffd700" : "#ffe066";
+  renderNotes();
+};
+
+// Hiển thị danh sách ghi chú (lọc theo pin và tìm kiếm, thao tác đúng index gốc)
 function renderNotes() {
   chrome.storage.local.get('notesList', data => {
     let notes = data.notesList || [];
-    // Đảm bảo mỗi ghi chú là object
     notes = notes.map(n => typeof n === 'object' ? n : {text: n, time: '', pin: false});
-    // Sắp xếp: pin=true lên đầu
-    notes.sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
+    // mapping: index gốc
+    let mapping = notes.map((_, i) => i);
+    if (showOnlyPin) mapping = mapping.filter(i => notes[i].pin);
+    if (searchText) mapping = mapping.filter(i => (notes[i].text || "").toLowerCase().includes(searchText));
+    mapping.sort((a, b) => (notes[b].pin ? 1 : 0) - (notes[a].pin ? 1 : 0));
     const listDiv = document.getElementById('notes-list');
-    if (!notes.length) {
+    if (!mapping.length) {
       listDiv.innerHTML = '<i>Chưa có ghi chú nào.</i>';
       return;
     }
-    listDiv.innerHTML = notes.map((note, idx) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <span class="studymate-note-item" data-idx="${idx}" style="word-break:break-word;max-width:150px;cursor:pointer;">
-          ${note.text}
-          <span style="color:#aaa;font-size:11px;">${note.time ? ' ('+note.time+')' : ''}</span>
-        </span>
-        <div>
-          <button class="studymate-pin-btn" data-idx="${idx}" title="Ghim/Bỏ ghim" style="margin-right:4px;border:none;background:none;cursor:pointer;font-size:16px;">${note.pin ? "📌" : "📍"}</button>
-          <button data-idx="${idx}" style="color:#fff;background:#e74c3c;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;">X</button>
+    listDiv.innerHTML = mapping.map(realIdx => {
+      const note = notes[realIdx];
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span class="studymate-note-item" data-idx="${realIdx}" style="word-break:break-word;max-width:150px;cursor:pointer;">
+            ${note.text}
+            <span style="color:#aaa;font-size:11px;">${note.time ? ' ('+note.time+')' : ''}</span>
+          </span>
+          <div>
+            <button class="studymate-pin-btn" data-idx="${realIdx}" title="Ghim/Bỏ ghim" style="margin-right:4px;border:none;background:none;cursor:pointer;font-size:16px;">${note.pin ? "📌" : "📍"}</button>
+            <button data-idx="${realIdx}" style="color:#fff;background:#e74c3c;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;">X</button>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
     // Gắn sự kiện xóa
     listDiv.querySelectorAll('button[data-idx]:not(.studymate-pin-btn)').forEach(btn => {
       btn.onclick = () => {
-        notes.splice(Number(btn.dataset.idx), 1);
+        const idx = Number(btn.dataset.idx);
+        notes.splice(idx, 1);
         chrome.storage.local.set({notesList: notes}, renderNotes);
       };
     });
@@ -121,6 +141,25 @@ function renderNotes() {
   });
 }
 
+// Xuất ghi chú ra file TXT
+document.getElementById('popup-export').onclick = () => {
+  chrome.storage.local.get('notesList', data => {
+    const notes = data.notesList || [];
+    const txt = notes.map(n => {
+      let text = n.text || n;
+      let time = n.time ? ` (${n.time})` : '';
+      let pin = n.pin ? " [GHIM]" : "";
+      return `${text}${time}${pin}`;
+    }).join('\n');
+    const blob = new Blob([txt], {type:"text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = "studymate_notes.txt";
+    a.click(); URL.revokeObjectURL(url);
+  });
+};
+
+// Hiển thị ghi chú khi mở popup
 renderNotes();
 
 // Lưu ghi chú mới (có pin, thời gian, nhắc nhở)
@@ -155,9 +194,6 @@ document.getElementById('saveNote').onclick = () => {
     });
   });
 };
-
-// Hiển thị ghi chú khi mở popup
-renderNotes();
 
 document.getElementById('saveWordBtn').onclick = ()=>{
   chrome.tabs.query({active:true,currentWindow:true}, tabs=>{
