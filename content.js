@@ -63,6 +63,8 @@
           <option value="dark">Tối</option>
           <option value="blue">Xanh</option>
           <option value="pink">Hồng</option>
+          <option value="green">Xanh lá</option>
+          <option value="gray">Xám</option>
         </select>
         <select id="studymate-font" style="border-radius:4px;">
           <option value="sans-serif">Sans</option>
@@ -120,6 +122,18 @@
           box.style.color = "#ad1457";
           box.querySelector('textarea').style.background = "#ffe3f0";
           box.querySelector('textarea').style.color = "#ad1457";
+          break;
+        case "green":
+          box.style.background = "#e8f5e9";
+          box.style.color = "#388e3c";
+          box.querySelector('textarea').style.background = "#e8f5e9";
+          box.querySelector('textarea').style.color = "#388e3c";
+          break;
+        case "gray":
+          box.style.background = "#ececec";
+          box.style.color = "#333";
+          box.querySelector('textarea').style.background = "#ececec";
+          box.querySelector('textarea').style.color = "#333";
           break;
         default:
           box.style.background = "#fffbe7";
